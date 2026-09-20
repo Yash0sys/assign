@@ -44,7 +44,7 @@ async function dismissCookieBanner(page) {
     // Strategy 1: Try to click ACCEPT / Accept button
     const clicked = await page.evaluate(() => {
       const buttons = Array.from(document.querySelectorAll('button'));
-      const acceptBtn = buttons.find(b => 
+      const acceptBtn = buttons.find(b =>
         /^(ACCEPT|Accept|accept)$/.test(b.textContent.trim())
       );
       if (acceptBtn) {
@@ -109,25 +109,16 @@ async function scrapeProduct(browser, productId) {
     });
     const page = await context.newPage();
 
-    // Inject a script that auto-removes cookie overlays the INSTANT they appear
-    await page.addInitScript(() => {
-      const observer = new MutationObserver((mutations) => {
-        for (const m of mutations) {
-          for (const node of m.addedNodes) {
-            if (node.nodeType === 1) {
-              // Check if the added node IS the cookie overlay
-              if (node.classList && node.classList.contains('cookie-overlay')) {
-                node.remove();
-                continue;
-              }
-              // Check children too
-              const overlays = node.querySelectorAll ? node.querySelectorAll('.cookie-overlay') : [];
-              overlays.forEach(el => el.remove());
-            }
-          }
+    // Safely hide cookie overlays using CSS instead of removing DOM nodes (which can break React)
+    await page.addStyleTag({
+      content: `
+        .cookie-overlay, .cookie-banner, [class*="cookie-overlay"] {
+          display: none !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
+          z-index: -1 !important;
         }
-      });
-      observer.observe(document.documentElement, { childList: true, subtree: true });
+      `
     });
 
     try {
@@ -188,8 +179,8 @@ async function scrapeProduct(browser, productId) {
 
       if (!revealBtn) throw new Error("Reveal price button not found or still disabled");
 
-      // 7. Click "Reveal price" using raw JS to guarantee it bypasses any hidden overlays
-      await revealBtn.evaluate(b => b.click());
+      // 7. Click "Reveal price" (force: true bypasses pointer-events but generates an isTrusted event)
+      await revealBtn.click({ force: true });
 
       // 8. Wait for price to load — could be "loading", "retrying", or "success"
       //    The store's own UI retries up to 6 times internally
@@ -372,8 +363,8 @@ async function scrapeProduct(browser, productId) {
         await sleep(delay);
       }
     } finally {
-      await page.close().catch(() => {});
-      await context.close().catch(() => {});
+      await page.close().catch(() => { });
+      await context.close().catch(() => { });
     }
   }
 
