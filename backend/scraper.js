@@ -109,16 +109,26 @@ async function scrapeProduct(browser, productId) {
     });
     const page = await context.newPage();
 
-    // Safely hide cookie overlays using CSS instead of removing DOM nodes (which can break React)
-    await page.addStyleTag({
-      content: `
-        .cookie-overlay, .cookie-banner, [class*="cookie-overlay"] {
-          display: none !important;
-          opacity: 0 !important;
-          pointer-events: none !important;
-          z-index: -1 !important;
-        }
-      `
+    // Use addInitScript so cookie-hiding CSS persists across navigations
+    // (addStyleTag only applies to the current page and is lost on goto)
+    await page.addInitScript(() => {
+      const hideOverlay = () => {
+        const style = document.createElement('style');
+        style.textContent = `
+          .cookie-overlay, .cookie-banner, [class*="cookie-overlay"] {
+            display: none !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            z-index: -1 !important;
+          }
+        `;
+        (document.head || document.documentElement).appendChild(style);
+      };
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', hideOverlay);
+      } else {
+        hideOverlay();
+      }
     });
 
     try {
@@ -132,7 +142,17 @@ async function scrapeProduct(browser, productId) {
         timeout: 30000,
       });
 
-      // 1.5 Dismiss cookie banner IMMEDIATELY after page load (before anything else)
+      // 1.5 Re-inject CSS after navigation as safety net + dismiss cookie banner
+      await page.addStyleTag({
+        content: `
+          .cookie-overlay, .cookie-banner, [class*="cookie-overlay"] {
+            display: none !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            z-index: -1 !important;
+          }
+        `
+      });
       await dismissCookieBanner(page);
 
       // 2. Wait for React to render the product detail
