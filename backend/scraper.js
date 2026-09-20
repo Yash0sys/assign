@@ -109,6 +109,27 @@ async function scrapeProduct(browser, productId) {
     });
     const page = await context.newPage();
 
+    // Inject a script that auto-removes cookie overlays the INSTANT they appear
+    await page.addInitScript(() => {
+      const observer = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          for (const node of m.addedNodes) {
+            if (node.nodeType === 1) {
+              // Check if the added node IS the cookie overlay
+              if (node.classList && node.classList.contains('cookie-overlay')) {
+                node.remove();
+                continue;
+              }
+              // Check children too
+              const overlays = node.querySelectorAll ? node.querySelectorAll('.cookie-overlay') : [];
+              overlays.forEach(el => el.remove());
+            }
+          }
+        }
+      });
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+    });
+
     try {
       console.log(
         `  [Product ${productId}] Attempt ${attempt}/${MAX_RETRIES} — navigating...`
@@ -167,8 +188,8 @@ async function scrapeProduct(browser, productId) {
 
       if (!revealBtn) throw new Error("Reveal price button not found or still disabled");
 
-      // 7. Click "Reveal price"
-      await revealBtn.click();
+      // 7. Click "Reveal price" (force: true bypasses overlay interception checks)
+      await revealBtn.click({ force: true });
 
       // 8. Wait for price to load — could be "loading", "retrying", or "success"
       //    The store's own UI retries up to 6 times internally
