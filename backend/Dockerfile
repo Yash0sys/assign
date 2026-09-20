@@ -1,4 +1,4 @@
-FROM node:20-slim
+FROM node:22-slim
 
 # Playwright needs these OS packages to run Chromium
 RUN apt-get update && apt-get install -y \
