@@ -188,8 +188,8 @@ async function scrapeProduct(browser, productId) {
 
       if (!revealBtn) throw new Error("Reveal price button not found or still disabled");
 
-      // 7. Click "Reveal price" (force: true bypasses overlay interception checks)
-      await revealBtn.click({ force: true });
+      // 7. Click "Reveal price" using raw JS to guarantee it bypasses any hidden overlays
+      await revealBtn.evaluate(b => b.click());
 
       // 8. Wait for price to load — could be "loading", "retrying", or "success"
       //    The store's own UI retries up to 6 times internally
